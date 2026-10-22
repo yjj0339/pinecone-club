@@ -64,6 +64,11 @@ try {
   git config user.email 'yjj0339@users.noreply.github.com'
   git add -A
   git commit -m 'PINECONE CLUB: 双人联机小游戏合集' | Out-Null
+  git fetch origin main 2>$null
+  if ($LASTEXITCODE -eq 0) {
+    git reset --soft FETCH_HEAD | Out-Null
+    git commit -m 'PINECONE CLUB: 双人联机小游戏合集' 2>$null | Out-Null
+  }
   $remoteExists = $false
   try { & $gh api "repos/$repo" --jq '.name' | Out-Null; $remoteExists = $true } catch {}
   if (-not $remoteExists) {

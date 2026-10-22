@@ -69,7 +69,7 @@ try {
   if ($origin -notcontains 'origin') {
     git remote add origin "https://github.com/$repo.git"
   }
-  git push -u origin main
+  git -c http.proxy= -c https.proxy= push -u origin main
   if ($LASTEXITCODE -ne 0) { throw '推送主分支失败。' }
 } finally {
   Pop-Location
@@ -84,7 +84,7 @@ try {
   git add -A
   git commit -m 'publish PINECONE CLUB' | Out-Null
   git remote add origin "https://github.com/$repo.git" 2>$null
-  git push -f origin gh-pages
+  git -c http.proxy= -c https.proxy= push -f origin gh-pages
   if ($LASTEXITCODE -ne 0) { throw '推送 gh-pages 失败。' }
 } finally {
   Pop-Location

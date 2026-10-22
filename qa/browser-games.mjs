@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const base = process.argv[2] || 'http://127.0.0.1:4460';
+const serverHint = process.argv[3] || base;
 const outDir = join(process.cwd(), 'artifacts', 'games');
 mkdirSync(outDir, { recursive: true });
 
@@ -34,7 +35,7 @@ function watch(page, label) {
 
 async function url() {
   const target = new URL(base);
-  target.searchParams.set('s', base);
+  target.searchParams.set('s', serverHint);
   return target.toString();
 }
 
@@ -42,13 +43,14 @@ async function openLobby(browser, label) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
   watch(page, label);
-  await page.goto(await url(), { waitUntil: 'networkidle' });
+  await page.goto(await url(), { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.waitForSelector('#pc-name', { timeout: 15000 });
+  await page.waitForFunction(() => document.querySelector('#pc-conn-text')?.textContent === '已连接', { timeout: 45000 });
   return { context, page };
 }
 
 async function main() {
-  const browser = await chromium.launch({ executablePath, headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+  const browser = await chromium.launch({ executablePath, headless: true, args: ['--no-sandbox', '--no-proxy-server', '--disable-dev-shm-usage'] });
   for (const [id, name] of games) {
     const a = await openLobby(browser, `${name}甲`);
     const b = await openLobby(browser, `${name}乙`);

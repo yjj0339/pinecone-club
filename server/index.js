@@ -91,7 +91,9 @@ export function createApp({ port = DEFAULT_PORT, dataDir = join(root, 'runtime',
   });
 
   httpServer.on('request', (req, res) => {
-    if (req.url === '/health') {
+    const pathname = (req.url || '').split('?')[0];
+    if (pathname.startsWith('/socket.io')) return;
+    if (pathname === '/health') {
       const body = JSON.stringify({ ok: true, name: SERVICE_NAME, version: VERSION, games: CATALOG.length, rooms: rooms.rooms.size, matches: store.count(), now: Date.now() });
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
       res.end(body);

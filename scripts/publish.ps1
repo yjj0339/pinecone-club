@@ -30,10 +30,14 @@ New-Item -ItemType Directory -Force -Path $pages | Out-Null
 Copy-Item -Path (Join-Path $root 'dist\*') -Destination $pages -Recurse -Force
 $urlFile = Join-Path $pages 'server-url.json'
 $keep = $false
-if (Test-Path $urlFile) {
+$localUrlFile = Join-Path $root 'server-url.json'
+if (Test-Path $localUrlFile) {
   try {
-    $existing = Get-Content $urlFile -Raw | ConvertFrom-Json
-    if ($existing.server) { $keep = $true }
+    $local = Get-Content $localUrlFile -Raw | ConvertFrom-Json
+    if ($local.server) {
+      Copy-Item $localUrlFile $urlFile -Force
+      $keep = $true
+    }
   } catch {}
 }
 if (-not $keep) {
@@ -69,8 +73,15 @@ try {
   if ($origin -notcontains 'origin') {
     git remote add origin "https://github.com/$repo.git"
   }
-  git -c http.proxy= -c https.proxy= push -u origin main
-  if ($LASTEXITCODE -ne 0) { throw '推送主分支失败。' }
+  $gitArgs = @('-c', 'http.proxy=', '-c', 'https.proxy=', '-c', 'http.version=HTTP/1.1')
+  $pushed = $false
+  for ($attempt = 0; $attempt -lt 6; $attempt++) {
+    & git @gitArgs push -u origin main
+    if ($LASTEXITCODE -eq 0) { $pushed = $true; break }
+    Write-Host "      推送失败，第 $($attempt + 1) 次重试..."
+    Start-Sleep -Seconds 4
+  }
+  if (-not $pushed) { throw '推送主分支失败。' }
 } finally {
   Pop-Location
 }
@@ -84,8 +95,15 @@ try {
   git add -A
   git commit -m 'publish PINECONE CLUB' | Out-Null
   git remote add origin "https://github.com/$repo.git" 2>$null
-  git -c http.proxy= -c https.proxy= push -f origin gh-pages
-  if ($LASTEXITCODE -ne 0) { throw '推送 gh-pages 失败。' }
+  $gitArgs = @('-c', 'http.proxy=', '-c', 'https.proxy=', '-c', 'http.version=HTTP/1.1')
+  $pushed = $false
+  for ($attempt = 0; $attempt -lt 6; $attempt++) {
+    & git @gitArgs push -f origin gh-pages
+    if ($LASTEXITCODE -eq 0) { $pushed = $true; break }
+    Write-Host "      发布失败，第 $($attempt + 1) 次重试..."
+    Start-Sleep -Seconds 4
+  }
+  if (-not $pushed) { throw '推送 gh-pages 失败。' }
 } finally {
   Pop-Location
 }

@@ -35,7 +35,8 @@ try {
 Write-Host '[3/6] 启动权威服务端'
 $serverOut = Join-Path $logs 'server.out.log'
 $serverErr = Join-Path $logs 'server.err.log'
-$server = Start-Process -FilePath $node -ArgumentList 'server/index.js' -WorkingDirectory $root -PassThru -WindowStyle Hidden -RedirectStandardOutput $serverOut -RedirectStandardError $serverErr
+$serverScript = Join-Path $root 'server\index.js'
+$server = Start-Process -FilePath $node -ArgumentList $serverScript -WorkingDirectory $root -PassThru -WindowStyle Hidden -RedirectStandardOutput $serverOut -RedirectStandardError $serverErr
 $healthy = $false
 for ($i = 0; $i -lt 60; $i++) {
   Start-Sleep -Milliseconds 500
@@ -54,9 +55,20 @@ $publicUrl = ''
 if (-not $SkipTunnel) {
   Write-Host '[4/6] 启动 Cloudflare 隧道'
   $cloudflared = Join-Path $bin 'cloudflared.exe'
-  if (-not (Test-Path $cloudflared)) {
+  $ready = (Test-Path $cloudflared) -and ((Get-Item $cloudflared).Length -gt 10MB)
+  if (-not $ready) {
     Write-Host '      首次运行，下载 cloudflared...'
-    Invoke-WebRequest -Uri 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe' -OutFile $cloudflared -UseBasicParsing
+    Remove-Item $cloudflared -Force -ErrorAction SilentlyContinue
+    try {
+      Invoke-WebRequest -Uri 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe' -OutFile $cloudflared -UseBasicParsing
+    } catch {}
+    $ready = (Test-Path $cloudflared) -and ((Get-Item $cloudflared).Length -gt 10MB)
+    if (-not $ready) {
+      Write-Host '      直连没有成功，改走 GitHub API 分流下载...'
+      Remove-Item $cloudflared -Force -ErrorAction SilentlyContinue
+      & $node (Join-Path $PSScriptRoot 'fetch-cloudflared.mjs') $cloudflared
+      if ($LASTEXITCODE -ne 0) { throw 'cloudflared 下载失败，请检查网络后重新双击启动。' }
+    }
   }
   $tunnelOut = Join-Path $logs 'tunnel.out.log'
   $tunnelErr = Join-Path $logs 'tunnel.err.log'

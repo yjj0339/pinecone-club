@@ -13,11 +13,13 @@ function Get-ProcessInfo($processId) {
   Get-CimInstance Win32_Process -Filter "ProcessId=$processId" -ErrorAction SilentlyContinue
 }
 
-function Stop-OurProcess($processId, $pattern) {
+function Stop-StateServer($processId) {
   if (-not $processId -or $processId -le 0) { return }
   $info = Get-ProcessInfo $processId
-  if (-not $info) { return }
-  if ($pattern -and ($info.CommandLine -notlike $pattern)) { return }
+  if (-not $info -or $info.Name -ne 'node.exe') { return }
+  $command = $info.CommandLine
+  $match = $command -like '*pinecone-club*' -or $command -like '*server/index.js*' -or $command -like '*server\index.js*'
+  if (-not $match) { return }
   Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
   $script:killed += $processId
 }
@@ -27,13 +29,14 @@ if (Test-Path $statePath) {
     $state = Get-Content $statePath -Raw | ConvertFrom-Json
     if ($state.tunnelPid) {
       $info = Get-ProcessInfo $state.tunnelPid
-      if ($info -and $info.Name -eq 'cloudflared.exe') { Stop-OurProcess $state.tunnelPid '*cloudflared*' }
+      if ($info -and $info.Name -eq 'cloudflared.exe' -and $info.CommandLine -like "*127.0.0.1:$port*") {
+        Stop-Process -Id $state.tunnelPid -Force -ErrorAction SilentlyContinue
+        $script:killed += $state.tunnelPid
+      }
     }
     if ($state.serverPid) {
-      $info = Get-ProcessInfo $state.serverPid
-      if ($info -and $info.Name -eq 'node.exe') { Stop-OurProcess $state.serverPid '*pinecone-club*' }
+      Stop-StateServer $state.serverPid
     }
-    Remove-Item $statePath -Force
   } catch {}
 }
 
@@ -41,16 +44,20 @@ $listeners = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction Si
 foreach ($listener in $listeners) {
   $info = Get-ProcessInfo $listener.OwningProcess
   if ($info -and $info.CommandLine -like '*pinecone-club*') {
-    Stop-OurProcess $listener.OwningProcess '*pinecone-club*'
+    Stop-Process -Id $listener.OwningProcess -Force -ErrorAction SilentlyContinue
+    $script:killed += $listener.OwningProcess
   }
 }
 
 $tunnels = Get-CimInstance Win32_Process -Filter "Name='cloudflared.exe'" -ErrorAction SilentlyContinue
 foreach ($tunnel in $tunnels) {
-  if ($tunnel.CommandLine -like "*127.0.0.1:$port*") {
-    Stop-OurProcess $tunnel.ProcessId '*cloudflared*'
+  if ($tunnel.CommandLine -like '*pinecone-club*' -and $tunnel.CommandLine -like "*127.0.0.1:$port*") {
+    Stop-Process -Id $tunnel.ProcessId -Force -ErrorAction SilentlyContinue
+    $script:killed += $tunnel.ProcessId
   }
 }
+
+Remove-Item $statePath -Force
 
 if (-not $Quiet) {
   if ($killed.Count -gt 0) {

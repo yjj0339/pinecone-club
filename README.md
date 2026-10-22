@@ -39,6 +39,9 @@ npm run build      # 构建 dist
 npm start          # 启动服务端（4460）
 npm test           # 引擎 + 服务端测试
 npm run qa         # 双客户端联机冒烟
+node qa/browser.mjs http://127.0.0.1:4460                 # 双窗口整局 + 三视口 + 动效降级
+node qa/browser-games.mjs http://127.0.0.1:4460           # 20 款视图逐款挂载检查
+node qa/public.mjs                                        # 线上页面自动发现 + 邀请链接
 ```
 
 ## 目录
@@ -60,7 +63,7 @@ docs/              设计契约、制作提示词、验收记录
 - 只允许两人一间房，房号六位数字；房间关闭后房号立即失效。
 - 对局状态完全由服务端持有；刷新页面会通过本机保存的身份牌自动回到原座位。
 - 只有在 `runtime/state.json` 记录的服务和隧道会被停止脚本处理，不会碰机器上其他项目。
-- 首次启动需要联网下载 `cloudflared`（约 30MB，存放在 `runtime/bin`）。
+- 首次启动需要联网下载 `cloudflared`（官方约 55MB，存放在 `runtime/bin`）；若直连失败会自动改走 GitHub API 分流下载。
 
 ## 测试与验收
 
